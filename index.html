@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VERONIC FORMULA FRONT - Mech Combat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { 'retro': ['VT323', 'monospace'], 'mono': ['Share Tech Mono', 'monospace'] },
+                    colors: {
+                        'terminal': '#00ff41', 'terminal-dim': '#00aa2a', 'mech-orange': '#ff6b00',
+                        'mech-red': '#ff2a2a', 'mech-blue': '#0088ff', 'armor': '#4a5568',
+                        'panel': '#1a1a2e', 'panel-light': '#252542', 'warning': '#ffaa00',
+                    },
+                    animation: { 'flicker': 'flicker 0.15s infinite', 'glow': 'glow 2s ease-in-out infinite alternate' },
+                    keyframes: {
+                        flicker: { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.95' } },
+                        glow: { '0%': { textShadow: '0 0 5px #00ff41, 0 0 10px #00ff41' }, '100%': { textShadow: '0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41' } },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #0a0a12;
+            overflow: hidden;
+        }
+
+        .crt-overlay {
+            pointer-events: none;
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.15) 0px, rgba(0, 0, 0, 0.15) 1px, transparent 1px, transparent 2px);
+            z-index: 9999;
+        }
+
+        .vignette {
+            pointer-events: none;
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%);
+            z-index: 9998;
+        }
+
+        .screen-glow {
+            box-shadow: 0 0 60px rgba(0, 255, 65, 0.1), inset 0 0 100px rgba(0, 255, 65, 0.05);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00aa2a;
+            border-radius: 3px;
+        }
+
+        .pixel-border {
+            border: 2px solid #00ff41;
+            box-shadow: inset 2px 2px 0 #00aa2a, inset -2px -2px 0 #005510;
+        }
+
+        .btn-press:active {
+            transform: scale(0.97);
+            filter: brightness(0.8);
+        }
+
+        .stat-bar {
+            background: linear-gradient(to right, #00ff41, #00aa2a);
+            box-shadow: 0 0 5px #00ff41;
+        }
+
+        .rarity-common {
+            color: #9ca3af;
+        }
+
+        .rarity-rare {
+            color: #3b82f6;
+        }
+
+        .rarity-epic {
+            color: #a855f7;
+        }
+
+        .rarity-legendary {
+            color: #f59e0b;
+            text-shadow: 0 0 10px #f59e0b;
+        }
+
+        .tab-active {
+            background: linear-gradient(to top, #00ff4120, transparent);
+        }
+
+        #robot-viewer {
+            width: 100%;
+            height: 220px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #0a0a12;
+        }
+
+        #robot-viewer canvas {
+            display: block;
+        }
+
+        #battle-arena {
+            width: 100%;
+            height: 200px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #0a0a12;
+        }
+
+        #battle-arena canvas {
+            display: block;
+        }
+
+        .battle-log::-webkit-scrollbar {
+            width: 4px;
+        }
+    </style>
+</head>
+
+<body class="font-retro text-terminal min-h-screen flex flex-col">
+    <div class="crt-overlay"></div>
+    <div class="vignette"></div>
+
+    <div id="app" class="flex flex-col h-screen max-w-md mx-auto w-full screen-glow">
+        <header class="bg-panel border-b-2 border-terminal-dim px-4 py-2 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xl animate-glow">⚙</span>
+                <h1 class="text-base tracking-widest">VERONIC FF</h1>
+            </div>
+            <div class="flex gap-4 text-sm">
+                <div class="flex items-center gap-1"><span class="text-warning">$</span><span
+                        id="currency-dollars">10000</span></div>
+                <div class="flex items-center gap-1"><span class="text-mech-blue">◆</span><span
+                        id="currency-materia">500</span></div>
+            </div>
+        </header>
+
+        <main id="main-content" class="flex-1 overflow-y-auto p-3"></main>
+
+        <footer class="bg-panel border-t-2 border-terminal-dim">
+            <nav class="flex justify-around">
+                <button data-tab="hangar"
+                    class="tab-btn flex flex-col items-center py-2 px-3 flex-1 btn-press transition-all duration-150 tab-active">
+                    <span class="text-xl">🤖</span><span class="text-[10px] tracking-wide">HANGAR</span>
+                </button>
+                <button data-tab="missions"
+                    class="tab-btn flex flex-col items-center py-2 px-3 flex-1 btn-press transition-all duration-150 opacity-70">
+                    <span class="text-xl">⚔</span><span class="text-[10px] tracking-wide">BATTLE</span>
+                </button>
+                <button data-tab="gacha"
+                    class="tab-btn flex flex-col items-center py-2 px-3 flex-1 btn-press transition-all duration-150 opacity-70">
+                    <span class="text-xl">🎰</span><span class="text-[10px] tracking-wide">GACHA</span>
+                </button>
+                <button data-tab="inventory"
+                    class="tab-btn flex flex-col items-center py-2 px-3 flex-1 btn-press transition-all duration-150 opacity-70">
+                    <span class="text-xl">📦</span><span class="text-[10px] tracking-wide">PARTS</span>
+                </button>
+                <button data-tab="menu"
+                    class="tab-btn flex flex-col items-center py-2 px-3 flex-1 btn-press transition-all duration-150 opacity-70">
+                    <span class="text-xl">☰</span><span class="text-[10px] tracking-wide">MENU</span>
+                </button>
+            </nav>
+        </footer>
+    </div>
+
+    <div id="modal-container" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/80" id="modal-backdrop"></div>
+        <div id="modal-content" class="absolute inset-4 flex items-center justify-center"></div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="storage.js"></script>
+    <script src="game.js"></script>
+    <script src="robot-renderer.js"></script>
+    <script src="battle-renderer.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
